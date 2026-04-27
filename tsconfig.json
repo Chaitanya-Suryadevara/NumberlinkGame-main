@@ -4,7 +4,9 @@
     "types": ["jest"],
     "strict": false,
     "noImplicitAny": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]

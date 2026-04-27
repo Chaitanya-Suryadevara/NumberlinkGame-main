@@ -312,6 +312,7 @@ export function GameScreen({playerName}: Props) {
       levelId: level.originalId || level.id,
       playerName: playerName || 'Player',
       timeSeconds: seconds,
+      difficulty: level.difficulty,
       createdAt: new Date().toISOString(),
     };
 
@@ -609,6 +610,9 @@ export function GameScreen({playerName}: Props) {
                   <View>
                     <Text style={styles.scoreName}>
                       #{index + 1} {score.playerName || 'Unknown'}
+                    </Text>
+                    <Text style={styles.scoreDifficulty}>
+                      {score?.difficulty?.toUpperCase() || 'N/A'}
                     </Text>  
                   </View>
 
@@ -878,6 +882,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontSize: 12,
     marginTop: 3,
+  },
+  scoreDifficulty: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
+    marginTop: 3,
+    textTransform: 'capitalize',
   },
   scoreTime: {
     color: '#ffcc00',

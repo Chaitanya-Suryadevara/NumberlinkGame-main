@@ -31,5 +31,6 @@ export type Score = {
   levelId: string;
   playerName: string;
   timeSeconds: number;
+  difficulty?: Difficulty;
   createdAt?: string;
 };

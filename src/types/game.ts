@@ -14,6 +14,7 @@ export type Pair = {
 
 export type Level = {
   id: string;
+  originalId?: string;
   size: number;
   difficulty: Difficulty;
   pairs: Pair[];

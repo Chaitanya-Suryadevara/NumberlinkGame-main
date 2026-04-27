@@ -110,7 +110,7 @@ export function HomeScreen({onStart}: Props) {
         ]),
       ).start();
     });
-  }, []);
+  },);
 
   return (
     <LinearGradient

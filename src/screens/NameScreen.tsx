@@ -60,7 +60,7 @@ export function NameScreen({onContinue}: Props) {
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Example: Chaithanya"
+              placeholder="Example: Chaitanya"
               placeholderTextColor="rgba(255,255,255,0.65)"
               style={styles.input}
               autoCapitalize="words"

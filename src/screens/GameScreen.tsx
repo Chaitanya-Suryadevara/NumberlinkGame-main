@@ -58,6 +58,7 @@ function redesignLevel(level: Level): Level {
   return {
     ...level,
     id: `${level.id}-style-${Date.now()}`,
+    originalId: level.originalId || level.id,
     pairs: level.pairs.map((pair, index) => ({
       ...pair,
       id: letters[index] || pair.id,
@@ -107,6 +108,7 @@ export function GameScreen({playerName}: Props) {
 
   useEffect(() => {
     loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -174,9 +176,17 @@ export function GameScreen({playerName}: Props) {
 
     if (isWin(level, paths) && !hasWon) {
       setHasWon(true);
-      setStatusMessage('Game completed. Tap Submit Score to save your score.');
+      setStatusMessage('Game completed. Auto-submitting score...');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paths]);
+
+  useEffect(() => {
+    if (hasWon && !scoreSubmitted) {
+      handleSubmitScore();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasWon, scoreSubmitted]);
 
   const resetRoundState = () => {
     setPaths({});
@@ -267,9 +277,10 @@ export function GameScreen({playerName}: Props) {
 
   const loadScores = async (levelId: string) => {
     try {
-      setApiStatus(`GET /scores?levelId=${levelId} loading...`);
+      const baseLevelId = level.originalId || levelId;
+      setApiStatus(`GET /scores?levelId=${baseLevelId} loading...`);
 
-      const apiScores = await fetchScores(levelId);
+      const apiScores = await fetchScores(baseLevelId);
 
       console.log('GAME SCREEN SCORES DATA:', JSON.stringify(apiScores, null, 2));
 
@@ -298,7 +309,7 @@ export function GameScreen({playerName}: Props) {
 
     const newScore: Score = {
       id: `local-${level.id}-${Date.now()}`,
-      levelId: level.id,
+      levelId: level.originalId || level.id,
       playerName: playerName || 'Player',
       timeSeconds: seconds,
       createdAt: new Date().toISOString(),

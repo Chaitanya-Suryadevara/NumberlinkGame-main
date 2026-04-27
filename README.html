@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Numberlink Game Technical Documentation</title>
+</head>
+<body>
+
+<h1>Numberlink React Native Game - Technical Documentation</h1>
+
+<h2>1. Project Overview</h2>
+
+<p>
+  This project is a 5x5 Numberlink-style puzzle game built using React Native and TypeScript.
+  The player connects matching colored endpoints by dragging paths across the board. The puzzle
+  is complete when all matching pairs are connected and every cell in the grid is filled.
+</p>
+
+<h2>2. Application Flow</h2>
+
+<pre>
+App.tsx
+  ├── HomeScreen.tsx
+  │     └── Shows animated landing screen
+  │
+  ├── NameScreen.tsx
+  │     └── Allows player to enter name
+  │
+  └── GameScreen.tsx
+        ├── Board.tsx
+        │     └── Cell.tsx
+        │
+        ├── solveLevel.ts
+        │     └── Used for hint and validation
+        │
+        ├── generateLevel.ts
+        │     └── Creates Easy / Medium / Hard levels
+        │
+        └── gameApi.ts
+              ├── GET /levels
+              ├── GET /levels/{levelId}
+              ├── POST /scores
+              └── GET /scores?levelId={id}
+</pre>
+
+<h2>3. Main Screens</h2>
+
+<h3>3.1 App.tsx</h3>
+
+<p>
+  App.tsx controls the main navigation flow. It decides whether to show the Home screen,
+  Name screen, or Game screen.
+</p>
+
+<pre>
+import React, {useState} from 'react';
+import {StatusBar} from 'react-native';
+import {HomeScreen} from './src/screens/HomeScreen';
+import {NameScreen} from './src/screens/NameScreen';
+import {GameScreen} from './src/screens/GameScreen';
+
+type AppStep = 'home' | 'name' | 'game';
+
+function App(): React.JSX.Element {
+  // Controls which screen is currently visible
+  const [step, setStep] = useState&lt;AppStep&gt;('home');
+
+  // Stores player name entered in NameScreen
+  const [playerName, setPlayerName] = useState('');
+
+  return (
+    &lt;&gt;
+      &lt;StatusBar barStyle="light-content" /&gt;
+
+      {/* First screen: animated home screen */}
+      {step === 'home' &amp;&amp; (
+        &lt;HomeScreen onStart={() =&gt; setStep('name')} /&gt;
+      )}
+
+      {/* Second screen: player enters name */}
+      {step === 'name' &amp;&amp; (
+        &lt;NameScreen
+          onContinue={name =&gt; {
+            setPlayerName(name);
+            setStep('game');
+          }}
+        /&gt;
+      )}
+
+      {/* Third screen: actual puzzle game */}
+      {step === 'game' &amp;&amp; (
+        &lt;GameScreen playerName={playerName} /&gt;
+      )}
+    &lt;/&gt;
+  );
+}
+
+export default App;
+</pre>
+
+<h3>3.2 HomeScreen.tsx</h3>
+
+<p>
+  HomeScreen is the animated landing screen. It uses gradient colors and animations.
+  The user taps or swipes up to move to the Name screen.
+</p>
+
+<pre>
+HomeScreen
+  └── onStart()
+        └── App.tsx changes step from "home" to "name"
+</pre>
+
+<h3>3.3 NameScreen.tsx</h3>
+
+<p>
+  NameScreen collects the player name. Once the player enters a name and taps continue,
+  the name is passed back to App.tsx and then sent into GameScreen.
+</p>
+
+<pre>
+NameScreen
+  └── onContinue(name)
+        └── App.tsx stores playerName
+              └── GameScreen receives playerName as prop
+</pre>
+
+<h3>3.4 GameScreen.tsx</h3>
+
+<p>
+  GameScreen is the main screen of the app. It manages the current level, paths, timer,
+  scoreboard, API status, hint system, reset behavior, and win state.
+</p>
+
+<pre>
+GameScreen
+  ├── Loads levels from API
+  ├── Shows player greeting
+  ├── Displays current level and timer
+  ├── Renders Board component
+  ├── Calls solver for hints
+  ├── Generates levels
+  ├── Submits scores
+  └── Shows all level scoreboard
+</pre>
+
+<h2>4. Component Relationship</h2>
+
+<h3>4.1 Board.tsx</h3>
+
+<p>
+  Board receives the current level and path state from GameScreen. It handles drag logic
+  and updates the paths when the user moves across cells.
+</p>
+
+<pre>
+GameScreen
+  └── Board
+        props:
+          - level
+          - paths
+          - setPaths
+          - setIsDragging
+</pre>
+
+<h3>Board Usage in GameScreen</h3>
+
+<pre>
+&lt;Board
+  level={level}              // Current puzzle level
+  paths={paths}              // Current user-drawn paths
+  setPaths={setPaths}        // Updates paths while dragging
+  setIsDragging={setIsDragging} // Disables scroll while dragging on board
+/&gt;
+</pre>
+
+<h3>4.2 Cell.tsx</h3>
+
+<p>
+  Cell is a small square inside the 5x5 board. Board renders 25 Cell components.
+  Each Cell can show an endpoint letter or a filled path color.
+</p>
+
+<pre>
+Board.tsx
+  └── Cell.tsx
+        props:
+          - size
+          - color
+          - label
+          - isEndpoint
+</pre>
+
+<h2>5. Data Types</h2>
+
+<h3>game.ts</h3>
+
+<pre>
+export type Point = {
+  x: number; // Column position
+  y: number; // Row position
+};
+
+export type Pair = {
+  id: string;      // Example: A, B, C
+  color: string;   // Color used for endpoint/path
+  start: Point;    // First endpoint
+  end: Point;      // Second endpoint
+};
+
+export type Level = {
+  id: string;
+  size: number; // 5
+  difficulty: 'easy' | 'medium' | 'hard';
+  pairs: Pair[];
+};
+
+export type PathMap = Record&lt;string, Point[]&gt;;
+
+export type Score = {
+  id?: string;
+  levelId: string;
+  playerName: string;
+  timeSeconds: number;
+  createdAt?: string;
+};
+</pre>
+
+<h2>6. Game State in GameScreen</h2>
+
+<pre>
+const [levels, setLevels] = useState&lt;Level[]&gt;([sampleLevel]);
+// Stores all available levels
+
+const [level, setLevel] = useState&lt;Level&gt;(redesignLevel(sampleLevel));
+// Stores currently selected level
+
+const [paths, setPaths] = useState&lt;PathMap&gt;({});
+// Stores player-drawn paths for each pair
+
+const [seconds, setSeconds] = useState(0);
+// Timer
+
+const [scores, setScores] = useState&lt;Score[]&gt;([]);
+// Current level scores
+
+const [allScores, setAllScores] = useState&lt;Score[]&gt;([]);
+// All level scores shown at bottom
+
+const [hasWon, setHasWon] = useState(false);
+// Tracks whether current level is completed
+
+const [scoreSubmitted, setScoreSubmitted] = useState(false);
+// Prevents duplicate score submission
+
+const [apiStatus, setApiStatus] = useState('Not checked yet');
+// Shows API status in UI
+</pre>
+
+<h2>7. API Integration</h2>
+
+<h3>API File: gameApi.ts</h3>
+
+<p>
+  All API calls are kept inside gameApi.ts. This keeps GameScreen clean and makes
+  API debugging easier.
+</p>
+
+<h3>Base URL</h3>
+
+<pre>
+const BASE_URL = 'http://localhost:4010';
+</pre>
+
+<p>
+  For iOS simulator, localhost works. For Android emulator, use:
+</p>
+
+<pre>
+const BASE_URL = 'http://10.0.2.2:4010';
+</pre>
+
+<h2>8. APIs Used</h2>
+
+<table border="1" cellpadding="8">
+  <tr>
+    <th>API</th>
+    <th>Method</th>
+    <th>Purpose</th>
+    <th>Used In</th>
+  </tr>
+  <tr>
+    <td>/levels</td>
+    <td>GET</td>
+    <td>Fetch all available levels</td>
+    <td>loadInitialData()</td>
+  </tr>
+  <tr>
+    <td>/levels/{levelId}</td>
+    <td>GET</td>
+    <td>Fetch one level by ID</td>
+    <td>loadSelectedLevel()</td>
+  </tr>
+  <tr>
+    <td>/scores?levelId={id}</td>
+    <td>GET</td>
+    <td>Fetch scoreboard for a level</td>
+    <td>loadScores()</td>
+  </tr>
+  <tr>
+    <td>/scores</td>
+    <td>POST</td>
+    <td>Submit player score</td>
+    <td>handleSubmitScore()</td>
+  </tr>
+</table>
+
+<h2>9. API Code with Comments</h2>
+
+<pre>
+import axios from 'axios';
+import {Level, Score} from '../types/game';
+
+const BASE_URL = 'http://localhost:4010';
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+});
+
+export async function fetchLevels(): Promise&lt;Level[]&gt; {
+  try {
+    console.log('GET /levels request');
+
+    const response = await api.get('/levels');
+
+    console.log('GET /levels status:', response.status);
+    console.log('GET /levels data:', JSON.stringify(response.data, null, 2));
+
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error: any) {
+    console.log('GET /levels failed:', error.message);
+    return [];
+  }
+}
+
+export async function fetchLevel(id: string): Promise&lt;Level&gt; {
+  try {
+    console.log(`GET /levels/${id}`);
+
+    const response = await api.get(`/levels/${id}`);
+
+    console.log('Single level response:', JSON.stringify(response.data, null, 2));
+
+    return response.data;
+  } catch (error: any) {
+    console.log('GET level failed:', error.message);
+    throw error;
+  }
+}
+
+export async function fetchScores(levelId: string): Promise&lt;Score[]&gt; {
+  try {
+    console.log(`GET /scores?levelId=${levelId}`);
+
+    const response = await api.get('/scores', {
+      params: {levelId},
+    });
+
+    console.log('Scores response:', JSON.stringify(response.data, null, 2));
+
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error: any) {
+    console.log('GET scores failed:', error.message);
+    return [];
+  }
+}
+
+export async function submitScore(score: Score): Promise&lt;Score&gt; {
+  try {
+    console.log('POST /scores sending:', JSON.stringify(score, null, 2));
+
+    const response = await api.post('/scores', score, {
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+    });
+
+    console.log('POST /scores status:', response.status);
+    console.log('POST /scores response:', JSON.stringify(response.data, null, 2));
+
+    return response.data;
+  } catch (error: any) {
+    console.log('POST /scores failed:', error.message);
+    throw error;
+  }
+}
+</pre>
+
+<h2>10. How API is Used in GameScreen</h2>
+
+<h3>10.1 Loading Levels</h3>
+
+<pre>
+const loadInitialData = async () =&gt; {
+  try {
+    setLoading(true);
+    setApiStatus('GET /levels loading...');
+
+    // Calls API to get levels
+    const apiLevels = await fetchLevels();
+
+    // If API has levels, use them. Otherwise use sample level.
+    const validLevels = apiLevels.length &gt; 0 ? apiLevels : [sampleLevel];
+
+    // Apply random color/letter design
+    const redesignedLevels = validLevels.map(item =&gt; redesignLevel(item));
+
+    setLevels(redesignedLevels);
+
+    const firstLevel = redesignedLevels[0];
+    setLevel(firstLevel);
+
+    // Load scores for first level
+    await loadScores(firstLevel.id);
+
+    resetRoundState();
+    setApiOnline(true);
+  } catch (error) {
+    // If API fails, fallback to local sample
+    const local = redesignLevel(sampleLevel);
+
+    setApiOnline(false);
+    setLevels([local]);
+    setLevel(local);
+    resetRoundState();
+    setStatusMessage('API is offline. Using local sample level.');
+  } finally {
+    setLoading(false);
+  }
+};
+</pre>
+
+<h3>10.2 Loading Scores</h3>
+
+<pre>
+const loadScores = async (levelId: string) =&gt; {
+  try {
+    setApiStatus(`GET /scores?levelId=${levelId} loading...`);
+
+    // Fetch scores for current level
+    const apiScores = await fetchScores(levelId);
+
+    // Current level scoreboard
+    setScores(apiScores);
+
+    // Add scores into all-level scoreboard
+    addToAllScores(apiScores);
+
+    setApiStatus(`GET /scores success. Scores: ${apiScores.length}`);
+  } catch (error) {
+    setApiStatus('GET /scores failed');
+  }
+};
+</pre>
+
+<h3>10.3 Submitting Score</h3>
+
+<pre>
+const handleSubmitScore = async () =&gt; {
+  // Do not submit if puzzle is incomplete
+  if (!isWin(level, paths)) {
+    setStatusMessage(
+      'Game is not complete. Connect all matching colors and fill every grid cell before submitting.',
+    );
+    return;
+  }
+
+  // Prevent duplicate score submission
+  if (scoreSubmitted) {
+    setStatusMessage('Score already submitted for this level attempt.');
+    return;
+  }
+
+  const newScore: Score = {
+    id: `local-${level.id}-${Date.now()}`,
+    levelId: level.id,
+    playerName: playerName || 'Player',
+    timeSeconds: seconds,
+    createdAt: new Date().toISOString(),
+  };
+
+  // Optimistic UI update
+  setScoreSubmitted(true);
+  setHasWon(true);
+  setScores(prev =&gt; [newScore, ...prev]);
+  addToAllScores([newScore]);
+
+  try {
+    // Submit to API
+    await submitScore(newScore);
+
+    setStatusMessage('Score submitted successfully.');
+
+    // Reload API scores for current level
+    await loadScores(level.id);
+  } catch (error) {
+    // Local score remains visible even if API fails
+    setStatusMessage('Score saved locally, but API submission failed.');
+  }
+};
+</pre>
+
+<h2>11. Scoreboard Behavior</h2>
+
+<p>
+  The app now keeps two score lists:
+</p>
+
+<ul>
+  <li><strong>scores:</strong> scores for the current level</li>
+  <li><strong>allScores:</strong> scores across all levels</li>
+</ul>
+
+<p>
+  When the user changes level, the all-level scoreboard is not cleared. This allows
+  the bottom scoreboard to show scores from Easy, Medium, Hard, and generated levels.
+</p>
+
+<pre>
+const [scores, setScores] = useState&lt;Score[]&gt;([]);
+const [allScores, setAllScores] = useState&lt;Score[]&gt;([]);
+</pre>
+
+<h3>Preventing Duplicate Scores</h3>
+
+<pre>
+const [scoreSubmitted, setScoreSubmitted] = useState(false);
+
+if (scoreSubmitted) {
+  setStatusMessage('Score already submitted for this level attempt.');
+  return;
+}
+</pre>
+
+<h2>12. Solver Approach</h2>
+
+<p>
+  The solver is independent from the React UI. It accepts a level and returns either
+  a full solution or null.
+</p>
+
+<pre>
+solveLevel(level: Level): Solution | null
+</pre>
+
+<p>
+  The solver uses depth-first search and backtracking.
+</p>
+
+<ul>
+  <li>It starts from one endpoint.</li>
+  <li>It checks neighboring cells in four directions.</li>
+  <li>It avoids used cells.</li>
+  <li>It rejects invalid paths.</li>
+  <li>It backtracks when a path cannot complete.</li>
+  <li>It returns null if the board is not solvable.</li>
+</ul>
+
+<h3>Hint Usage</h3>
+
+<pre>
+const handleHint = () =&gt; {
+  const solution = solveLevel(level);
+
+  if (!solution) {
+    setStatusMessage('This board is unsolvable.');
+    return;
+  }
+
+  // Finds next valid point from solver solution
+  for (const pair of level.pairs) {
+    const solvedPath = solution.paths[pair.id];
+    const currentPath = paths[pair.id] || [pair.start];
+
+    const nextPoint = solvedPath[currentPath.length];
+
+    if (nextPoint) {
+      setPaths(prev =&gt; ({
+        ...prev,
+        [pair.id]: [...currentPath, nextPoint],
+      }));
+
+      setStatusMessage(
+        `Hint: Continue ${pair.id} to row ${nextPoint.y + 1}, column ${nextPoint.x + 1}.`,
+      );
+      return;
+    }
+  }
+};
+</pre>
+
+<h2>13. Board Interaction</h2>
+
+<p>
+  Board handles drag logic. When a player touches an endpoint, a path starts.
+  As the player drags across adjacent cells, the path grows.
+</p>
+
+<pre>
+Board.tsx
+  ├── Detect touch start
+  ├── Identify selected endpoint
+  ├── Track active pair
+  ├── Add valid adjacent cells
+  ├── Reject overlap
+  ├── Reject diagonal movement
+  └── Update paths in GameScreen
+</pre>
+
+<h2>14. Win Condition</h2>
+
+<p>
+  The win condition is checked inside boardUtils.ts.
+</p>
+
+<pre>
+isWin(level, paths)
+</pre>
+
+<p>
+  The function returns true only when:
+</p>
+
+<ul>
+  <li>Every pair has a path.</li>
+  <li>Every path starts and ends at matching endpoints.</li>
+  <li>All movements are adjacent.</li>
+  <li>All 25 grid cells are filled.</li>
+</ul>
+
+<h2>15. Level Generation</h2>
+
+<p>
+  Levels can be generated by difficulty.
+</p>
+
+<pre>
+generateLevel({size: 5, difficulty: 'easy'})
+generateLevel({size: 5, difficulty: 'medium'})
+generateLevel({size: 5, difficulty: 'hard'})
+</pre>
+
+<p>
+  After a level is generated, the app validates it with the solver before presenting it.
+</p>
+
+<h2>16. Reset and New Design</h2>
+
+<p>
+  Reset does more than clear the board. It also changes the visual style.
+  The level keeps the same layout, but colors and alphabets change.
+</p>
+
+<pre>
+const resetGameWithNewDesign = () =&gt; {
+  const redesigned = redesignLevel(level);
+
+  setLevel(redesigned);
+
+  setLevels(prev =&gt;
+    prev.map(item =&gt; (item.id === level.id ? redesigned : item)),
+  );
+
+  resetRoundState();
+
+  setStatusMessage('New design loaded. Alphabets and colors changed.');
+};
+</pre>
+
+<h2>17. Redesign Logic</h2>
+
+<pre>
+function redesignLevel(level: Level): Level {
+  const palette =
+    colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+
+  const letters =
+    alphabetSets[Math.floor(Math.random() * alphabetSets.length)];
+
+  return {
+    ...level,
+    id: `${level.id}-style-${Date.now()}`,
+    pairs: level.pairs.map((pair, index) =&gt; ({
+      ...pair,
+      id: letters[index] || pair.id,
+      color: palette[index] || pair.color,
+    })),
+  };
+}
+</pre>
+
+<h2>18. API Debugging Logs</h2>
+
+<p>
+  Logs are added to help verify API behavior during development and interviews.
+</p>
+
+<pre>
+console.log('GET /levels data:', JSON.stringify(response.data, null, 2));
+console.log('GET /scores data:', JSON.stringify(response.data, null, 2));
+console.log('POST /scores sending:', JSON.stringify(score, null, 2));
+console.log('POST /scores response:', JSON.stringify(response.data, null, 2));
+</pre>
+
+<h2>19. Mock API Notes</h2>
+
+<p>
+  The mock API is served using Stoplight Prism and Swagger/OpenAPI.
+</p>
+
+<p>
+  Important note: Prism validates requests and returns mock responses, but it does
+  not behave like a real database. This means POST may return success, but GET may
+  still return static example scores unless a real backend is added.
+</p>
+
+<h2>20. Tradeoffs and Incomplete Areas</h2>
+
+<ul>
+  <li>
+    <strong>Mock API persistence:</strong> Scores are optimistically added in UI because
+    Prism does not persist submitted scores like a database.
+  </li>
+  <li>
+    <strong>Solver scalability:</strong> Current solver works for 5x5. Larger boards
+    would need optimization.
+  </li>
+  <li>
+    <strong>Procedural generation:</strong> Current generation focuses on solvable
+    layouts. More randomized puzzle generation can be added later.
+  </li>
+  <li>
+    <strong>Path rendering:</strong> Current path visuals use filled cells. A future
+    improvement would be smooth pipe-like rendering.
+  </li>
+  <li>
+    <strong>Backend:</strong> A real Node.js or Firebase backend could be added for
+    persistent leaderboard storage.
+  </li>
+</ul>
+
+<h2>21. Interview Explanation</h2>
+
+<p>
+  A good explanation for the architecture:
+</p>
+
+<blockquote>
+  I separated the app into screens, reusable components, utilities, solver logic,
+  generator logic, and API services. The Board and Cell components handle rendering
+  and interaction, while the solver is independent from React and can be used for
+  validation and hints. API calls are isolated in gameApi.ts, which makes the UI
+  cleaner and easier to debug. Scores are updated optimistically in the UI before
+  being submitted to the mock API.
+</blockquote>
+
+</body>
+</html>
